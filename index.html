@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF to JPG Converter</title>
-    <!-- Include PDF.js from a CDN -->
+    <!-- Include PDF.js from a secure CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <style>
         body {
@@ -58,6 +58,9 @@
             border-radius: 8px;
             padding: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
         }
         .page-card img {
             width: 100%;
@@ -75,6 +78,7 @@
             text-decoration: none;
             border-radius: 6px;
             font-size: 14px;
+            font-weight: 500;
             transition: background 0.2s;
         }
         .download-btn:hover {
@@ -132,11 +136,11 @@
                     
                     const page = await pdf.getPage(pageNum);
                     
-                    // Set scale for quality (2.0 offers a great balance of clarity and file size)
+                    // Set scale for quality (2.0 offers clear rendering)
                     const scale = 2.0; 
                     const viewport = page.getViewport({ scale: scale });
 
-                    // Create a hidden canvas element to draw the PDF page
+                    // Create canvas element to draw the PDF page
                     const canvas = document.createElement('canvas');
                     const context = canvas.getContext('2d');
                     canvas.height = viewport.height;
@@ -150,11 +154,16 @@
                     // Render PDF page into canvas
                     await page.render(renderContext).promise;
 
-                    // Convert canvas to JPG data URL
-                    const imgDataUrl = canvas.toDataURL('image/jpeg', 0.9); // 0.9 is the quality factor
-
-                    // Create UI element for the converted page
-                    createPageCard(pageNum, imgDataUrl);
+                    // Convert canvas to a safe binary Blob to bypass browser download restrictions
+                    canvas.toBlob((blob) => {
+                        if (!blob) return;
+                        
+                        // Create a temporary trusted local URL
+                        const blobUrl = URL.createObjectURL(blob);
+                        
+                        // Generate the card layout
+                        createPageCard(pageNum, blobUrl);
+                    }, 'image/jpeg', 0.9); // 0.9 is the JPEG image quality factor
                 }
 
                 statusMessage.textContent = "Conversion complete!";
@@ -168,16 +177,17 @@
         }
     });
 
-    function createPageCard(pageNum, imgDataUrl) {
+    function createPageCard(pageNum, blobUrl) {
         const card = document.createElement('div');
         card.className = 'page-card';
 
         const img = document.createElement('img');
-        img.src = imgDataUrl;
+        img.src = blobUrl;
         img.alt = `Page ${pageNum}`;
 
         const downloadLink = document.createElement('a');
-        downloadLink.href = imgDataUrl;
+        downloadLink.href = blobUrl;
+        // Setting the download attribute forces the browser to save it instead of navigating to it
         downloadLink.download = `page-${pageNum}.jpg`;
         downloadLink.className = 'download-btn';
         downloadLink.textContent = `Download Page ${pageNum}`;

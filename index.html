@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF to JPG Converter</title>
+    <!-- Include PDF.js from a CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+            background-color: #f5f5f7;
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        h1 {
+            margin-bottom: 20px;
+            color: #1d1d1f;
+        }
+        .upload-zone {
+            border: 2px dashed #0071e3;
+            padding: 40px 20px;
+            border-radius: 8px;
+            background: #fbfbfd;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .upload-zone:hover {
+            background: #f2f2f7;
+        }
+        #file-input {
+            display: none;
+        }
+        .status {
+            margin: 20px 0;
+            font-weight: 500;
+            color: #86868b;
+        }
+        .output-list {
+            margin-top: 30px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 20px;
+            text-align: left;
+        }
+        .page-card {
+            background: #fff;
+            border: 1px solid #d2d2d7;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .page-card img {
+            width: 100%;
+            height: auto;
+            border-radius: 4px;
+            border: 1px solid #e5e5ea;
+        }
+        .download-btn {
+            display: block;
+            margin-top: 10px;
+            background: #0071e3;
+            color: white;
+            text-align: center;
+            padding: 8px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        .download-btn:hover {
+            background: #005bb5;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>PDF to JPG Converter</h1>
+    <p>Convert your PDF pages into high-quality JPG images locally in your browser.</p>
+    
+    <div class="upload-zone" onclick="document.getElementById('file-input').click()">
+        <p>Click to select or drag and drop your PDF file here</p>
+        <input type="file" id="file-input" accept="application/pdf">
+    </div>
+
+    <div class="status" id="status-message"></div>
+    <div class="output-list" id="output-container"></div>
+</div>
+
+<script>
+    // Point PDF.js to the correct worker script
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+    const fileInput = document.getElementById('file-input');
+    const statusMessage = document.getElementById('status-message');
+    const outputContainer = document.getElementById('output-container');
+
+    fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file || file.type !== "application/pdf") {
+            statusMessage.textContent = "Please select a valid PDF file.";
+            return;
+        }
+
+        // Clear previous results
+        outputContainer.innerHTML = '';
+        statusMessage.textContent = "Loading PDF...";
+
+        try {
+            const fileReader = new FileReader();
+            
+            fileReader.onload = async function () {
+                const typedarray = new Uint8Array(this.result);
+                
+                // Load the PDF document
+                const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                statusMessage.textContent = `Processing ${pdf.numPages} pages...`;
+
+                // Loop through every page
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    statusMessage.textContent = `Rendering page ${pageNum}/${pdf.numPages}...`;
+                    
+                    const page = await pdf.getPage(pageNum);
+                    
+                    // Set scale for quality (2.0 offers a great balance of clarity and file size)
+                    const scale = 2.0; 
+                    const viewport = page.getViewport({ scale: scale });
+
+                    // Create a hidden canvas element to draw the PDF page
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+
+                    const renderContext = {
+                        canvasContext: context,
+                        viewport: viewport
+                    };
+                    
+                    // Render PDF page into canvas
+                    await page.render(renderContext).promise;
+
+                    // Convert canvas to JPG data URL
+                    const imgDataUrl = canvas.toDataURL('image/jpeg', 0.9); // 0.9 is the quality factor
+
+                    // Create UI element for the converted page
+                    createPageCard(pageNum, imgDataUrl);
+                }
+
+                statusMessage.textContent = "Conversion complete!";
+            };
+
+            fileReader.readAsArrayBuffer(file);
+
+        } catch (error) {
+            console.error(error);
+            statusMessage.textContent = "An error occurred while converting the PDF.";
+        }
+    });
+
+    function createPageCard(pageNum, imgDataUrl) {
+        const card = document.createElement('div');
+        card.className = 'page-card';
+
+        const img = document.createElement('img');
+        img.src = imgDataUrl;
+        img.alt = `Page ${pageNum}`;
+
+        const downloadLink = document.createElement('a');
+        downloadLink.href = imgDataUrl;
+        downloadLink.download = `page-${pageNum}.jpg`;
+        downloadLink.className = 'download-btn';
+        downloadLink.textContent = `Download Page ${pageNum}`;
+
+        card.appendChild(img);
+        card.appendChild(downloadLink);
+        outputContainer.appendChild(card);
+    }
+</script>
+
+</body>
+</html>
